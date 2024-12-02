@@ -24,8 +24,8 @@ fn levels_valid(levels: &[i32]) -> bool {
     }
 
     let sign = (levels[1] - levels[0]).signum();
-    (1..levels.len()).all(|i| {
-        let diff = levels[i] - levels[i - 1];
+    levels.windows(2).all(|window| {
+        let diff = window[1] - window[0];
         diff.signum() == sign && (1..=3).contains(&diff.abs())
     })
 }
