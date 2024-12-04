@@ -1,78 +1,39 @@
 //! Day 3: Mull It Over
 //!
-//! A regex solution would be much shorter and arguably cleaner, but this state machine approach
-//! seems to be significantly faster, especially for part 2
-//!
 //! <https://adventofcode.com/2024/day/3>
 
 use std::error::Error;
+use winnow::ascii::digit1;
+use winnow::combinator::{separated_pair, terminated};
+use winnow::prelude::*;
 
-enum ParseState {
-    Start,                             //
-    M,                                 // m
-    Mu,                                // mu
-    Mul,                               // mul
-    MulParen,                          // mul(
-    MulParenOp(String),                // mul(\d+
-    MulParenOpComma(String),           // mul(\d+,
-    MulParenOpCommaOp(String, String), // mul(\d+,\d+
-    D,                                 // d
-    Do,                                // do
-    DoParen,                           // do(
-    Don,                               // don
-    DonApostrophe,                     // don'
-    Dont,                              // don't
-    DontParen,                         // don't(
+fn parse_i32(input: &mut &str) -> PResult<i32> {
+    digit1.try_map(str::parse).parse_next(input)
 }
 
-fn solve<const PART2: bool>(input: &str) -> i32 {
-    use ParseState::*;
+fn parse_mul_suffix(input: &mut &str) -> PResult<(i32, i32)> {
+    terminated(separated_pair(parse_i32, ',', parse_i32), ')').parse_next(input)
+}
 
+fn solve<const PART2: bool>(mut input: &str) -> i32 {
     let mut enabled = true;
     let mut sum = 0;
-    let mut state = Start;
-    for c in input.chars() {
-        state = match (state, c) {
-            (Start, 'm') => M,
-            (M, 'u') => Mu,
-            (Mu, 'l') => Mul,
-            (Mul, '(') => MulParen,
-            (MulParen, '0'..='9') => MulParenOp(c.to_string()),
-            (MulParenOp(mut op), '0'..='9') => {
-                op.push(c);
-                MulParenOp(op)
+
+    while input.len() >= 4 {
+        if enabled && input.starts_with("mul(") {
+            input = &input["mul(".len()..];
+            if let Ok((l, r)) = parse_mul_suffix(&mut input) {
+                sum += l * r;
             }
-            (MulParenOp(op), ',') => MulParenOpComma(op),
-            (MulParenOpComma(op), '0'..='9') => MulParenOpCommaOp(op, c.to_string()),
-            (MulParenOpCommaOp(l_op, mut r_op), '0'..='9') => {
-                r_op.push(c);
-                MulParenOpCommaOp(l_op, r_op)
-            }
-            (MulParenOpCommaOp(l_op, r_op), ')') => {
-                if enabled || !PART2 {
-                    let l: i32 = l_op.parse().unwrap();
-                    let r: i32 = r_op.parse().unwrap();
-                    sum += l * r;
-                }
-                Start
-            }
-            (Start, 'd') => D,
-            (D, 'o') => Do,
-            (Do, '(') => DoParen,
-            (DoParen, ')') => {
-                enabled = true;
-                Start
-            }
-            (Do, 'n') => Don,
-            (Don, '\'') => DonApostrophe,
-            (DonApostrophe, 't') => Dont,
-            (Dont, '(') => DontParen,
-            (DontParen, ')') => {
-                enabled = false;
-                Start
-            }
-            _ => Start,
-        };
+        } else if PART2 && input.starts_with("do()") {
+            enabled = true;
+            input = &input["do()".len()..];
+        } else if PART2 && input.starts_with("don't()") {
+            enabled = false;
+            input = &input["don't()".len()..];
+        } else {
+            input = &input[1..];
+        }
     }
 
     sum
