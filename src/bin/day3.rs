@@ -8,7 +8,7 @@ use winnow::combinator::{separated_pair, terminated};
 use winnow::prelude::*;
 
 fn parse_i32(input: &mut &str) -> PResult<i32> {
-    digit1.try_map(str::parse).parse_next(input)
+    digit1.parse_to().parse_next(input)
 }
 
 fn parse_mul_suffix(input: &mut &str) -> PResult<(i32, i32)> {

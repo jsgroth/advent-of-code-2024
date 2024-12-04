@@ -13,3 +13,7 @@ To run on an actual input file, specify the day using `--bin` and pass the filen
 ```shell
 cargo run --release --bin day1 -- /path/to/input1.txt
 ```
+
+These solutions use minimal third-party dependencies:
+* [rustc-hash](https://crates.io/crates/rustc-hash): Faster hash function for use with the standard library HashMap and HashSet
+* [winnow](https://crates.io/crates/winnow): Parser combinator library
