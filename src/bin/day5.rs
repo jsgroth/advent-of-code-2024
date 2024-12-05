@@ -49,26 +49,34 @@ fn solve_part_1(input: &str) -> u32 {
 
     let rules_graph = make_rules_graph(&rules);
 
-    let mut sum = 0;
     let mut seen: FxHashSet<u32> = FxHashSet::default();
-    'outer: for update in updates {
-        seen.clear();
-        for &page in &update {
-            if let Some(edges) = rules_graph.get(&page) {
-                for &edge in edges {
-                    if seen.contains(&edge) {
-                        continue 'outer;
-                    }
+    updates
+        .into_iter()
+        .filter_map(|update| {
+            is_ordered(&update, &rules_graph, &mut seen).then_some(update[update.len() / 2])
+        })
+        .sum()
+}
+
+fn is_ordered(
+    update: &[u32],
+    rules_graph: &FxHashMap<u32, Vec<u32>>,
+    seen: &mut FxHashSet<u32>,
+) -> bool {
+    seen.clear();
+    for &page in update {
+        if let Some(edges) = rules_graph.get(&page) {
+            for &edge in edges {
+                if seen.contains(&edge) {
+                    return false;
                 }
             }
-
-            seen.insert(page);
         }
 
-        sum += update[update.len() / 2];
+        seen.insert(page);
     }
 
-    sum
+    true
 }
 
 fn make_rules_graph(rules: &[(u32, u32)]) -> FxHashMap<u32, Vec<u32>> {
