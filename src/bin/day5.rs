@@ -2,6 +2,8 @@
 //!
 //! <https://adventofcode.com/2024/day/5>
 
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::collections::HashSet;
 use std::error::Error;
 use winnow::ascii::{digit1, newline};
 use winnow::combinator::{opt, repeat, separated, separated_pair, terminated};
@@ -29,11 +31,14 @@ fn parse_update(input: &mut &str) -> PResult<Vec<u32>> {
     separated(1.., parse_u32, ',').parse_next(input)
 }
 
+fn parse_updates(input: &mut &str) -> PResult<Vec<Vec<u32>>> {
+    separated(1.., parse_update, newline).parse_next(input)
+}
+
 fn parse_input(input: &mut &str) -> PResult<Input> {
     let rules = parse_rules.parse_next(input)?;
     newline.parse_next(input)?;
-
-    let updates: Vec<_> = separated(1.., parse_update, newline).parse_next(input)?;
+    let updates = parse_updates.parse_next(input)?;
     opt(newline).parse_next(input)?;
 
     Ok(Input { rules, updates })
@@ -42,14 +47,22 @@ fn parse_input(input: &mut &str) -> PResult<Input> {
 fn solve_part_1(input: &str) -> u32 {
     let Input { rules, updates } = parse_input.parse(input).unwrap();
 
+    let rules_graph = make_rules_graph(&rules);
+
     let mut sum = 0;
-    'outer: for update in &updates {
-        for &rule in &rules {
-            if let Some((before_idx, after_idx)) = find_rule_indices(rule, update) {
-                if before_idx > after_idx {
-                    continue 'outer;
+    let mut seen: FxHashSet<u32> = FxHashSet::default();
+    'outer: for update in updates {
+        seen.clear();
+        for &page in &update {
+            if let Some(edges) = rules_graph.get(&page) {
+                for &edge in edges {
+                    if seen.contains(&edge) {
+                        continue 'outer;
+                    }
                 }
             }
+
+            seen.insert(page);
         }
 
         sum += update[update.len() / 2];
@@ -58,41 +71,64 @@ fn solve_part_1(input: &str) -> u32 {
     sum
 }
 
-fn find_rule_indices(rule: (u32, u32), update: &[u32]) -> Option<(usize, usize)> {
-    let before_idx = update.iter().position(|&value| value == rule.0);
-    let after_idx = update.iter().position(|&value| value == rule.1);
-    match (before_idx, after_idx) {
-        (Some(a), Some(b)) => Some((a, b)),
-        _ => None,
+fn make_rules_graph(rules: &[(u32, u32)]) -> FxHashMap<u32, Vec<u32>> {
+    let mut graph: FxHashMap<u32, Vec<u32>> = FxHashMap::default();
+    for &(before, after) in rules {
+        graph.entry(before).or_default().push(after);
     }
+
+    graph
 }
 
 fn solve_part_2(input: &str) -> u32 {
     let Input { rules, updates } = parse_input.parse(input).unwrap();
 
-    let mut sum = 0;
-    for mut update in updates {
-        let mut rule_idx = 0;
-        let mut reordered = false;
-        while rule_idx < rules.len() {
-            match find_rule_indices(rules[rule_idx], &update) {
-                Some((before_idx, after_idx)) if before_idx > after_idx => {
-                    update.swap(before_idx, after_idx);
-                    rule_idx = 0;
-                    reordered = true;
-                }
-                _ => {
-                    rule_idx += 1;
-                }
-            }
-        }
+    let rules_graph = make_rules_graph(&rules);
 
-        if reordered {
-            sum += update[update.len() / 2];
+    let mut sum = 0;
+    for update in updates {
+        let sorted = topological_sort(&rules_graph, &update);
+        if sorted != update {
+            sum += sorted[sorted.len() / 2];
         }
     }
 
     sum
+}
+
+fn topological_sort(graph: &FxHashMap<u32, Vec<u32>>, update: &[u32]) -> Vec<u32> {
+    let update_set: FxHashSet<_> = update.iter().copied().collect();
+
+    let mut visited = HashSet::with_capacity_and_hasher(update.len(), FxBuildHasher);
+    let mut sorted = Vec::with_capacity(update.len());
+    for &page in update {
+        if !visited.contains(&page) {
+            topological_sort_visit(graph, page, &update_set, &mut visited, &mut sorted);
+        }
+    }
+    sorted.reverse();
+
+    sorted
+}
+
+fn topological_sort_visit(
+    graph: &FxHashMap<u32, Vec<u32>>,
+    page: u32,
+    update: &FxHashSet<u32>,
+    visited: &mut FxHashSet<u32>,
+    sorted: &mut Vec<u32>,
+) {
+    visited.insert(page);
+
+    if let Some(edges) = graph.get(&page) {
+        for &edge in edges {
+            if !visited.contains(&edge) && update.contains(&edge) {
+                topological_sort_visit(graph, edge, update, visited, sorted);
+            }
+        }
+    }
+
+    sorted.push(page);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
