@@ -1,8 +1,28 @@
 //! Day 6: Guard Gallivant
 //!
 //! <https://adventofcode.com/2024/day/6>
+//!
+//! -------
+//! Part 1
+//! -------
+//! Straightforward 2D grid walking
+//!
+//! -------
+//! Part 2
+//! -------
+//! Walk the grid as in part 1, but at each step, check if it's possible to place an obstacle at
+//! the next position that the guard would step onto. This is possible if the following are true:
+//!   - There is not already an obstacle in that position
+//!   - No obstacle has been placed yet
+//!   - The guard has not already stepped on the potential obstacle position
+//!
+//! If an obstacle can be placed then snapshot the current visited state, place the obstacle, and
+//! recursively check if the guard will enter a loop when starting from the current state. When the
+//! recursive call returns then restore visited state, remove the obstacle, and continue on normally.
+//!
+//! Loops are detected based on (row, column, direction) triples. If the guard ever steps on a
+//! position twice while facing the same direction, there is a loop.
 
-use rustc_hash::FxHashSet;
 use std::error::Error;
 
 #[derive(Debug, Clone, Copy)]
@@ -106,25 +126,21 @@ fn traverse_map(map: &[Vec<Space>], start: (i32, i32)) -> usize {
         .sum()
 }
 
-fn solve_part_2(input: &str) -> usize {
+fn solve_part_2(input: &str) -> u32 {
     let Input {
         mut map,
         guard_start,
     } = parse_input(input);
 
     let mut visited = vec![vec![0; map[0].len()]; map.len()];
-    let mut result = FxHashSet::default();
     traverse_part_2(
         &mut map,
         &mut visited,
         guard_start,
         Direction::Up,
-        None,
-        &mut result,
+        false,
         &mut VisitsBuffer::new(),
-    );
-
-    result.len()
+    )
 }
 
 struct VisitsBuffer {
@@ -162,15 +178,15 @@ fn traverse_part_2(
     visited: &mut Vec<Vec<u8>>,
     (mut row, mut col): (i32, i32),
     mut direction: Direction,
-    obstacle_location: Option<(i32, i32)>,
-    result: &mut FxHashSet<(i32, i32)>,
+    obstacle_placed: bool,
     visits: &mut VisitsBuffer,
-) {
+) -> u32 {
     visits.checkpoint();
 
+    let mut loops = 0;
     loop {
         if visited[row as usize][col as usize] & (direction as u8) != 0 {
-            result.insert(obstacle_location.unwrap());
+            loops += 1;
             break;
         }
         visited[row as usize][col as usize] |= direction as u8;
@@ -188,23 +204,18 @@ fn traverse_part_2(
             // Ran into an obstacle; rotate
             direction = direction.rotate_right();
         } else {
-            if obstacle_location.is_none()
-                && visited[next_row as usize][next_col as usize] == 0
-                && !result.contains(&(next_row, next_col))
-            {
+            if !obstacle_placed && visited[next_row as usize][next_col as usize] == 0 {
                 // No obstacle has been inserted yet, and the space ahead is:
                 //   * Empty
                 //   * Has not been visited yet
-                //   * Is not already part of the result (i.e. an obstacle was placed there and caused a loop)
                 // Insert the obstacle, recurse, then remove the obstacle
                 map[next_row as usize][next_col as usize] = Space::Obstacle;
-                traverse_part_2(
+                loops += traverse_part_2(
                     map,
                     visited,
                     (row, col),
                     direction.rotate_right(),
-                    Some((next_row, next_col)),
-                    result,
+                    true,
                     visits,
                 );
                 map[next_row as usize][next_col as usize] = Space::Empty;
@@ -214,6 +225,8 @@ fn traverse_part_2(
     }
 
     visits.unwind(visited);
+
+    loops
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

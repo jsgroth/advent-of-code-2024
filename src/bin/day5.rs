@@ -1,6 +1,27 @@
 //! Day 5: Print Queue
 //!
 //! <https://adventofcode.com/2024/day/5>
+//!
+//! -------
+//! Part 1
+//! -------
+//! 1. Build up a hash map from page number P to pages that must come after P
+//! 2. For each update, iterate through the pages in order, and record which pages have been seen;
+//!    for each page P, if any pages that must come after P have already been seen, the update is
+//!    not valid
+//!
+//! -------
+//! Part 2
+//! -------
+//! Setup is identical to part 1, but the hash map is interpreted as a directed graph where each
+//! node represents a page and an edge from A to B means that A must come before B.
+//!
+//! Each update is sorted individually using DFS-based topological sort. If the sort changed the
+//! update's ordering, the middle page in the sorted update is added to the running sum.
+//!
+//! Attempting to topological sort the entire rules graph does not work because the graph contains
+//! cycles. However, when filtering to the list of pages within a single update, there are
+//! guaranteed not to be any cycles (otherwise the problem would not be solvable).
 
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::HashSet;
