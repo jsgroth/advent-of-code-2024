@@ -121,9 +121,40 @@ fn solve_part_2(input: &str) -> usize {
         Direction::Up,
         None,
         &mut result,
+        &mut VisitsBuffer::new(),
     );
 
     result.len()
+}
+
+struct VisitsBuffer {
+    visits: Vec<(i32, i32, Direction)>,
+    indices: Vec<usize>,
+}
+
+impl VisitsBuffer {
+    fn new() -> Self {
+        Self {
+            visits: Vec::new(),
+            indices: Vec::new(),
+        }
+    }
+
+    fn checkpoint(&mut self) {
+        self.indices.push(self.visits.len());
+    }
+
+    fn unwind(&mut self, visited: &mut [Vec<u8>]) {
+        let i = self.indices.pop().unwrap();
+        for &(row, col, direction) in &self.visits[i..] {
+            visited[row as usize][col as usize] &= !(direction as u8);
+        }
+        self.visits.truncate(i);
+    }
+
+    fn push(&mut self, row: i32, col: i32, direction: Direction) {
+        self.visits.push((row, col, direction));
+    }
 }
 
 fn traverse_part_2(
@@ -133,8 +164,9 @@ fn traverse_part_2(
     mut direction: Direction,
     obstacle_location: Option<(i32, i32)>,
     result: &mut FxHashSet<(i32, i32)>,
+    visits: &mut VisitsBuffer,
 ) {
-    let mut visits = Vec::new();
+    visits.checkpoint();
 
     loop {
         if visited[row as usize][col as usize] & (direction as u8) != 0 {
@@ -142,7 +174,7 @@ fn traverse_part_2(
             break;
         }
         visited[row as usize][col as usize] |= direction as u8;
-        visits.push((row, col, direction));
+        visits.push(row, col, direction);
 
         let (next_row, next_col) = direction.step(row, col);
         if !(0..map.len() as i32).contains(&next_row)
@@ -173,6 +205,7 @@ fn traverse_part_2(
                     direction.rotate_right(),
                     Some((next_row, next_col)),
                     result,
+                    visits,
                 );
                 map[next_row as usize][next_col as usize] = Space::Empty;
             }
@@ -180,13 +213,7 @@ fn traverse_part_2(
         }
     }
 
-    unwind_visits(visited, &visits);
-}
-
-fn unwind_visits(visited: &mut [Vec<u8>], visits: &[(i32, i32, Direction)]) {
-    for &(row, col, direction) in visits {
-        visited[row as usize][col as usize] &= !(direction as u8);
-    }
+    visits.unwind(visited);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
