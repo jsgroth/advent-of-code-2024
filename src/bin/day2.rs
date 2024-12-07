@@ -5,17 +5,14 @@
 use std::error::Error;
 
 fn parse_input(input: &str) -> impl Iterator<Item = Vec<i32>> + use<'_> {
-    input.lines().filter(|line| !line.is_empty()).map(|line| {
-        line.split(' ')
-            .map(|level| level.parse::<i32>().unwrap())
-            .collect()
-    })
+    input
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.split(' ').map(|level| level.parse::<i32>().unwrap()).collect())
 }
 
 fn solve_part_1(input: &str) -> usize {
-    parse_input(input)
-        .filter(|levels| levels_valid(levels))
-        .count()
+    parse_input(input).filter(|levels| levels_valid(levels)).count()
 }
 
 fn levels_valid(levels: &[i32]) -> bool {

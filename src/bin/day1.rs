@@ -24,10 +24,7 @@ fn solve_part_1(input: &str) -> i32 {
     left.sort();
     right.sort();
 
-    left.into_iter()
-        .zip(right)
-        .map(|(a, b)| (a - b).abs())
-        .sum()
+    left.into_iter().zip(right).map(|(a, b)| (a - b).abs()).sum()
 }
 
 fn solve_part_2(input: &str) -> i32 {
@@ -38,9 +35,7 @@ fn solve_part_2(input: &str) -> i32 {
         *right_counts.entry(n).or_default() += 1;
     }
 
-    left.into_iter()
-        .map(|n| n * right_counts.get(&n).copied().unwrap_or_default())
-        .sum()
+    left.into_iter().map(|n| n * right_counts.get(&n).copied().unwrap_or_default()).sum()
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

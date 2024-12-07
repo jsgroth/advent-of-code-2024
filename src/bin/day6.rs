@@ -75,11 +75,7 @@ fn parse_input(input: &str) -> Input {
 
         let mut map_row = Vec::new();
         for (col, c) in line.chars().enumerate() {
-            map_row.push(if c == '#' {
-                Space::Obstacle
-            } else {
-                Space::Empty
-            });
+            map_row.push(if c == '#' { Space::Obstacle } else { Space::Empty });
             if c == '^' {
                 guard_start = Some((row as i32, col as i32));
             }
@@ -87,10 +83,7 @@ fn parse_input(input: &str) -> Input {
         map.push(map_row);
     }
 
-    Input {
-        map,
-        guard_start: guard_start.expect("No guard position in input"),
-    }
+    Input { map, guard_start: guard_start.expect("No guard position in input") }
 }
 
 fn solve_part_1(input: &str) -> usize {
@@ -120,17 +113,11 @@ fn traverse_map(map: &[Vec<Space>], start: (i32, i32)) -> usize {
         }
     }
 
-    visited
-        .into_iter()
-        .map(|row| row.into_iter().filter(|&b| b).count())
-        .sum()
+    visited.into_iter().map(|row| row.into_iter().filter(|&b| b).count()).sum()
 }
 
 fn solve_part_2(input: &str) -> u32 {
-    let Input {
-        mut map,
-        guard_start,
-    } = parse_input(input);
+    let Input { mut map, guard_start } = parse_input(input);
 
     let mut visited = vec![vec![0; map[0].len()]; map.len()];
     traverse_part_2(
@@ -150,10 +137,7 @@ struct VisitsBuffer {
 
 impl VisitsBuffer {
     fn new() -> Self {
-        Self {
-            visits: Vec::new(),
-            indices: Vec::new(),
-        }
+        Self { visits: Vec::new(), indices: Vec::new() }
     }
 
     fn checkpoint(&mut self) {

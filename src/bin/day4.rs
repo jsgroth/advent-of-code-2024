@@ -5,11 +5,7 @@
 use std::error::Error;
 
 fn parse_input(input: &str) -> Vec<Vec<u8>> {
-    input
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(|line| line.as_bytes().to_vec())
-        .collect()
+    input.lines().filter(|line| !line.is_empty()).map(|line| line.as_bytes().to_vec()).collect()
 }
 
 fn solve_part_1(input: &str) -> u32 {
@@ -63,11 +59,7 @@ fn solve_part_2(input: &str) -> usize {
     let grid = parse_input(input);
 
     (0..grid.len())
-        .map(|y| {
-            (0..grid[0].len())
-                .filter(|&x| check_mas_x_centered_at_point(&grid, y, x))
-                .count()
-        })
+        .map(|y| (0..grid[0].len()).filter(|&x| check_mas_x_centered_at_point(&grid, y, x)).count())
         .sum()
 }
 
