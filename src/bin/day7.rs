@@ -34,6 +34,7 @@ fn parse_input(input: &mut &str) -> PResult<Vec<Equation>> {
 
 fn solve<const PART2: bool>(input: &str) -> u64 {
     let equations = parse_input.parse(input).unwrap();
+    assert!(!equations.iter().any(|equation| equation.operands.contains(&0)));
 
     equations
         .into_iter()
@@ -69,10 +70,6 @@ fn test_mul<const PART2: bool>(test: u64, acc: u64, remaining: &[u64]) -> bool {
 
 fn test_concat(test: u64, acc: u64, remaining: &[u64]) -> bool {
     let operand = remaining[0];
-    if operand == 0 {
-        return test_equation::<true>(test, 10 * acc, &remaining[1..]);
-    }
-
     let next_acc = acc * 10_u64.pow(operand.ilog10() + 1) + operand;
     test_equation::<true>(test, next_acc, &remaining[1..])
 }
