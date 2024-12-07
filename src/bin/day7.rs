@@ -4,7 +4,7 @@
 
 use std::error::Error;
 use winnow::ascii::{digit1, newline};
-use winnow::combinator::{opt, separated, terminated};
+use winnow::combinator::{opt, separated, separated_pair};
 use winnow::prelude::*;
 
 #[derive(Debug)]
@@ -22,8 +22,7 @@ fn parse_operands(input: &mut &str) -> PResult<Vec<u64>> {
 }
 
 fn parse_equation(input: &mut &str) -> PResult<Equation> {
-    let test = terminated(parse_u64, ": ").parse_next(input)?;
-    let operands = parse_operands.parse_next(input)?;
+    let (test, operands) = separated_pair(parse_u64, ": ", parse_operands).parse_next(input)?;
     Ok(Equation { test, operands })
 }
 
@@ -48,6 +47,11 @@ fn solve<const PART2: bool>(input: &str) -> u64 {
 fn test_equation<const PART2: bool>(test: u64, acc: u64, remaining: &[u64]) -> bool {
     if remaining.is_empty() {
         return acc == test;
+    }
+
+    // All values are unsigned - operators can only increase the value, not decrease
+    if acc > test {
+        return false;
     }
 
     test_add::<PART2>(test, acc, remaining)
