@@ -2,7 +2,7 @@
 
 [Advent of Code 2024](https://adventofcode.com/2024) solutions
 
-Each day's solution is an individual binary located in `src/bin/`, with shared code in `src/lib.rs`.
+Each day's solution is an individual binary located in `src/bin/`, with shared code in `src/lib.rs` (and its submodules).
 
 Correctness for sample inputs is verified via unit tests:
 ```shell
