@@ -4,103 +4,99 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::error::Error;
-use std::num::NonZeroU8;
+use std::ops::{Add, AddAssign, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Space {
     Empty,
-    Antenna(NonZeroU8),
+    Antenna(u8),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Position {
+    row: i32,
+    col: i32,
+}
+
+impl Position {
+    fn new(row: i32, col: i32) -> Self {
+        Self { row, col }
+    }
+}
+
+impl Add for Position {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self { row: self.row + rhs.row, col: self.col + rhs.col }
+    }
+}
+
+impl AddAssign for Position {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
+impl Sub for Position {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self { row: self.row - rhs.row, col: self.col - rhs.col }
+    }
 }
 
 fn parse_input(input: &str) -> Vec<Vec<Space>> {
     input
         .lines()
+        .filter(|line| !line.is_empty())
         .map(|line| {
             line.chars()
-                .map(|c| {
-                    if c == '.' {
-                        Space::Empty
-                    } else {
-                        Space::Antenna(NonZeroU8::new(c as u8).unwrap())
-                    }
+                .map(|c| match c {
+                    '.' => Space::Empty,
+                    _ => Space::Antenna(c as u8),
                 })
                 .collect()
         })
         .collect()
 }
 
-fn solve_part_1(input: &str) -> usize {
-    let grid = parse_input(input);
+fn solve<const PART2: bool>(input: &str) -> usize {
+    let map = parse_input(input);
+    let rows = map.len() as i32;
+    let cols = map[0].len() as i32;
 
-    let mut positions: FxHashSet<(usize, usize)> = FxHashSet::default();
-    for i in 0..grid.len() {
-        for j in 0..grid[i].len() {
-            for ii in 0..grid.len() {
-                for jj in 0..grid[ii].len() {
-                    let Space::Antenna(c) = grid[ii][jj] else { continue };
+    let antenna_positions = build_positions_map(&map);
 
-                    let di = (ii as i32) - (i as i32);
-                    let dj = (jj as i32) - (j as i32);
-                    if di == 0 || dj == 0 {
-                        continue;
-                    }
+    let mut result: FxHashSet<Position> = FxHashSet::default();
+    for positions in antenna_positions.values() {
+        if positions.len() < 2 {
+            // Doesn't seem to happen in the input, but there can't be an antinode for a character
+            // with only one antenna
+            continue;
+        }
 
-                    let iii = (i as i32) + 2 * di;
-                    let jjj = (j as i32) + 2 * dj;
-                    if (0..grid.len() as i32).contains(&iii)
-                        && (0..grid[iii as usize].len() as i32).contains(&jjj)
-                        && grid[iii as usize][jjj as usize] == Space::Antenna(c)
-                    {
-                        positions.insert((i, j));
-                    }
-                }
+        for i in 0..positions.len() {
+            if PART2 {
+                // For part 2, every antenna position is a valid antinode location
+                result.insert(positions[i]);
             }
-        }
-    }
 
-    positions.len()
-}
+            for j in i + 1..positions.len() {
+                for (p1, p2) in [(positions[i], positions[j]), (positions[j], positions[i])] {
+                    let delta = p2 - p1;
 
-fn solve_part_2(input: &str) -> usize {
-    let grid = parse_input(input);
-
-    let mut char_to_positions: FxHashMap<u8, Vec<(usize, usize)>> = FxHashMap::default();
-    for (i, row) in grid.iter().enumerate() {
-        for (j, &space) in row.iter().enumerate() {
-            let Space::Antenna(c) = space else { continue };
-            char_to_positions.entry(c.get()).or_default().push((i, j));
-        }
-    }
-
-    let mut result: FxHashSet<(usize, usize)> = FxHashSet::default();
-    for positions in char_to_positions.values() {
-        for i in 0..positions.len() - 1 {
-            result.insert(positions[i]);
-            for j in i..positions.len() {
-                result.insert(positions[j]);
-
-                let ipos = positions[i];
-                let jpos = positions[j];
-
-                let drow = (jpos.0 as i32) - (ipos.0 as i32);
-                let dcol = (jpos.1 as i32) - (ipos.1 as i32);
-                if drow == 0 && dcol == 0 {
-                    continue;
-                }
-
-                for direction in [-1, 1] {
-                    let (mut row, mut col) = if direction == -1 {
-                        (ipos.0 as i32 - drow, ipos.1 as i32 - dcol)
-                    } else {
-                        (jpos.0 as i32 + drow, jpos.1 as i32 + dcol)
-                    };
-
-                    while (0..grid.len() as i32).contains(&row)
-                        && (0..grid[0].len() as i32).contains(&col)
+                    let mut current_pos = p2 + delta;
+                    while (0..rows).contains(&current_pos.row)
+                        && (0..cols).contains(&current_pos.col)
                     {
-                        result.insert((row as usize, col as usize));
-                        row += direction * drow;
-                        col += direction * dcol;
+                        result.insert(current_pos);
+                        current_pos += delta;
+
+                        if !PART2 {
+                            // For part 1, only the first position on the line is a valid antinode location
+                            break;
+                        }
                     }
                 }
             }
@@ -110,8 +106,19 @@ fn solve_part_2(input: &str) -> usize {
     result.len()
 }
 
+fn build_positions_map(map: &[Vec<Space>]) -> FxHashMap<u8, Vec<Position>> {
+    let mut antenna_positions: FxHashMap<u8, Vec<Position>> = FxHashMap::default();
+    for (i, row) in map.iter().enumerate() {
+        for (j, &space) in row.iter().enumerate() {
+            let Space::Antenna(c) = space else { continue };
+            antenna_positions.entry(c).or_default().push(Position::new(i as i32, j as i32));
+        }
+    }
+    antenna_positions
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    advent_of_code_2024::run(solve_part_1, solve_part_2)
+    advent_of_code_2024::run(solve::<false>, solve::<true>)
 }
 
 #[cfg(test)]
@@ -122,11 +129,11 @@ mod tests {
 
     #[test]
     fn part_1() {
-        assert_eq!(14, solve_part_1(SAMPLE_INPUT));
+        assert_eq!(14, solve::<false>(SAMPLE_INPUT));
     }
 
     #[test]
     fn part_2() {
-        assert_eq!(34, solve_part_2(SAMPLE_INPUT));
+        assert_eq!(34, solve::<true>(SAMPLE_INPUT));
     }
 }
