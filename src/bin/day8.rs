@@ -2,9 +2,9 @@
 //!
 //! <https://adventofcode.com/2024/day/8>
 
+use advent_of_code_2024::Pos2;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::error::Error;
-use std::ops::{Add, AddAssign, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Space {
@@ -12,39 +12,7 @@ enum Space {
     Antenna(u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Position {
-    row: i32,
-    col: i32,
-}
-
-impl Position {
-    fn new(row: i32, col: i32) -> Self {
-        Self { row, col }
-    }
-}
-
-impl Add for Position {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self { row: self.row + rhs.row, col: self.col + rhs.col }
-    }
-}
-
-impl AddAssign for Position {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
-}
-
-impl Sub for Position {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self { row: self.row - rhs.row, col: self.col - rhs.col }
-    }
-}
+type Position = Pos2<i32>;
 
 fn parse_input(input: &str) -> Vec<Vec<Space>> {
     input
@@ -87,9 +55,7 @@ fn solve<const PART2: bool>(input: &str) -> usize {
                     let delta = p2 - p1;
 
                     let mut current_pos = p2 + delta;
-                    while (0..rows).contains(&current_pos.row)
-                        && (0..cols).contains(&current_pos.col)
-                    {
+                    while (0..rows).contains(&current_pos.y) && (0..cols).contains(&current_pos.x) {
                         result.insert(current_pos);
                         current_pos += delta;
 
@@ -111,7 +77,7 @@ fn build_positions_map(map: &[Vec<Space>]) -> FxHashMap<u8, Vec<Position>> {
     for (i, row) in map.iter().enumerate() {
         for (j, &space) in row.iter().enumerate() {
             let Space::Antenna(c) = space else { continue };
-            antenna_positions.entry(c).or_default().push(Position::new(i as i32, j as i32));
+            antenna_positions.entry(c).or_default().push(Position { x: j as i32, y: i as i32 });
         }
     }
     antenna_positions

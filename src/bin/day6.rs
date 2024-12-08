@@ -23,7 +23,10 @@
 //! Loops are detected based on (row, column, direction) triples. If the guard ever steps on a
 //! position twice while facing the same direction, there is a loop.
 
+use advent_of_code_2024::Pos2;
 use std::error::Error;
+
+type Position = Pos2<i32>;
 
 #[derive(Debug, Clone, Copy)]
 enum Direction {
@@ -34,7 +37,7 @@ enum Direction {
 }
 
 impl Direction {
-    fn rotate_right(self) -> Self {
+    const fn rotate_right(self) -> Self {
         match self {
             Self::Up => Self::Right,
             Self::Right => Self::Down,
@@ -43,12 +46,12 @@ impl Direction {
         }
     }
 
-    fn step(self, row: i32, col: i32) -> (i32, i32) {
+    const fn delta(self) -> Position {
         match self {
-            Self::Up => (row - 1, col),
-            Self::Right => (row, col + 1),
-            Self::Down => (row + 1, col),
-            Self::Left => (row, col - 1),
+            Self::Up => Position { x: 0, y: -1 },
+            Self::Left => Position { x: -1, y: 0 },
+            Self::Right => Position { x: 1, y: 0 },
+            Self::Down => Position { x: 0, y: 1 },
         }
     }
 }
@@ -62,12 +65,12 @@ enum Space {
 #[derive(Debug)]
 struct Input {
     map: Vec<Vec<Space>>,
-    guard_start: (i32, i32),
+    guard_start: Position,
 }
 
 fn parse_input(input: &str) -> Input {
     let mut map = Vec::new();
-    let mut guard_start: Option<(i32, i32)> = None;
+    let mut guard_start: Option<Position> = None;
     for (row, line) in input.lines().enumerate() {
         if line.is_empty() {
             continue;
@@ -77,7 +80,7 @@ fn parse_input(input: &str) -> Input {
         for (col, c) in line.chars().enumerate() {
             map_row.push(if c == '#' { Space::Obstacle } else { Space::Empty });
             if c == '^' {
-                guard_start = Some((row as i32, col as i32));
+                guard_start = Some(Position { x: col as i32, y: row as i32 });
             }
         }
         map.push(map_row);
@@ -91,25 +94,25 @@ fn solve_part_1(input: &str) -> usize {
     traverse_map(&map, guard_start)
 }
 
-fn traverse_map(map: &[Vec<Space>], start: (i32, i32)) -> usize {
+fn traverse_map(map: &[Vec<Space>], start: Position) -> usize {
     let mut visited = vec![vec![false; map[0].len()]; map.len()];
 
-    let (mut row, mut col) = start;
+    let mut current_pos = start;
     let mut direction = Direction::Up;
     loop {
-        visited[row as usize][col as usize] = true;
+        visited[current_pos.y as usize][current_pos.x as usize] = true;
 
-        let (next_row, next_col) = direction.step(row, col);
-        if !(0..map.len() as i32).contains(&next_row)
-            || !(0..map[0].len() as i32).contains(&next_col)
+        let next_pos = current_pos + direction.delta();
+        if !(0..map.len() as i32).contains(&next_pos.y)
+            || !(0..map[0].len() as i32).contains(&next_pos.x)
         {
             break;
         }
 
-        if map[next_row as usize][next_col as usize] == Space::Obstacle {
+        if map[next_pos.y as usize][next_pos.x as usize] == Space::Obstacle {
             direction = direction.rotate_right();
         } else {
-            (row, col) = (next_row, next_col);
+            current_pos = next_pos;
         }
     }
 
@@ -131,7 +134,7 @@ fn solve_part_2(input: &str) -> u32 {
 }
 
 struct VisitsBuffer {
-    visits: Vec<(i32, i32, Direction)>,
+    visits: Vec<(Position, Direction)>,
     indices: Vec<usize>,
 }
 
@@ -146,21 +149,21 @@ impl VisitsBuffer {
 
     fn unwind(&mut self, visited: &mut [Vec<u8>]) {
         let i = self.indices.pop().unwrap();
-        for &(row, col, direction) in &self.visits[i..] {
-            visited[row as usize][col as usize] &= !(direction as u8);
+        for &(pos, direction) in &self.visits[i..] {
+            visited[pos.y as usize][pos.x as usize] &= !(direction as u8);
         }
         self.visits.truncate(i);
     }
 
-    fn push(&mut self, row: i32, col: i32, direction: Direction) {
-        self.visits.push((row, col, direction));
+    fn push(&mut self, pos: Position, direction: Direction) {
+        self.visits.push((pos, direction));
     }
 }
 
 fn traverse_part_2(
     map: &mut [Vec<Space>],
     visited: &mut Vec<Vec<u8>>,
-    (mut row, mut col): (i32, i32),
+    mut current_pos: Position,
     mut direction: Direction,
     obstacle_placed: bool,
     visits: &mut VisitsBuffer,
@@ -169,42 +172,42 @@ fn traverse_part_2(
 
     let mut loops = 0;
     loop {
-        if visited[row as usize][col as usize] & (direction as u8) != 0 {
+        if visited[current_pos.y as usize][current_pos.x as usize] & (direction as u8) != 0 {
             loops += 1;
             break;
         }
-        visited[row as usize][col as usize] |= direction as u8;
-        visits.push(row, col, direction);
+        visited[current_pos.y as usize][current_pos.x as usize] |= direction as u8;
+        visits.push(current_pos, direction);
 
-        let (next_row, next_col) = direction.step(row, col);
-        if !(0..map.len() as i32).contains(&next_row)
-            || !(0..map[0].len() as i32).contains(&next_col)
+        let next_pos = current_pos + direction.delta();
+        if !(0..map.len() as i32).contains(&next_pos.y)
+            || !(0..map[0].len() as i32).contains(&next_pos.x)
         {
             // Went out of bounds
             break;
         }
 
-        if map[next_row as usize][next_col as usize] == Space::Obstacle {
+        if map[next_pos.y as usize][next_pos.x as usize] == Space::Obstacle {
             // Ran into an obstacle; rotate
             direction = direction.rotate_right();
         } else {
-            if !obstacle_placed && visited[next_row as usize][next_col as usize] == 0 {
+            if !obstacle_placed && visited[next_pos.y as usize][next_pos.x as usize] == 0 {
                 // No obstacle has been inserted yet, and the space ahead is:
                 //   * Empty
                 //   * Has not been visited yet
                 // Insert the obstacle, recurse, then remove the obstacle
-                map[next_row as usize][next_col as usize] = Space::Obstacle;
+                map[next_pos.y as usize][next_pos.x as usize] = Space::Obstacle;
                 loops += traverse_part_2(
                     map,
                     visited,
-                    (row, col),
+                    current_pos,
                     direction.rotate_right(),
                     true,
                     visits,
                 );
-                map[next_row as usize][next_col as usize] = Space::Empty;
+                map[next_pos.y as usize][next_pos.x as usize] = Space::Empty;
             }
-            (row, col) = (next_row, next_col);
+            current_pos = next_pos;
         }
     }
 
