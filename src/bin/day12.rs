@@ -43,7 +43,7 @@ fn build_region_and_area_maps(map: &[&[u8]]) -> (Vec<Vec<u32>>, FxHashMap<u32, u
     for i in 0..map.len() {
         for j in 0..map[i].len() {
             if regions[i][j] == 0 {
-                floodfill(map, i, j, current_region, map[i][j], &mut regions);
+                floodfill(map, i, j, current_region, &mut regions);
                 current_region += 1;
             }
         }
@@ -59,14 +59,7 @@ fn build_region_and_area_maps(map: &[&[u8]]) -> (Vec<Vec<u32>>, FxHashMap<u32, u
     (regions, region_to_area)
 }
 
-fn floodfill(
-    map: &[&[u8]],
-    i: usize,
-    j: usize,
-    current_region: u32,
-    current_char: u8,
-    regions: &mut [Vec<u32>],
-) {
+fn floodfill(map: &[&[u8]], i: usize, j: usize, current_region: u32, regions: &mut [Vec<u32>]) {
     regions[i][j] = current_region;
 
     for (di, dj) in [(-1, 0), (0, -1), (1, 0), (0, 1)] {
@@ -75,9 +68,9 @@ fn floodfill(
         if (0..map.len() as i32).contains(&ii)
             && (0..map[0].len() as i32).contains(&jj)
             && regions[ii as usize][jj as usize] == 0
-            && map[ii as usize][jj as usize] == current_char
+            && map[ii as usize][jj as usize] == map[i][j]
         {
-            floodfill(map, ii as usize, jj as usize, current_region, current_char, regions);
+            floodfill(map, ii as usize, jj as usize, current_region, regions);
         }
     }
 }
