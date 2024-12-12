@@ -3,6 +3,7 @@
 //! <https://adventofcode.com/2024/day/12>
 
 use rustc_hash::FxHashMap;
+use std::cmp;
 use std::error::Error;
 
 fn parse_input(input: &str) -> Vec<&[u8]> {
@@ -11,12 +12,12 @@ fn parse_input(input: &str) -> Vec<&[u8]> {
 
 fn solve_part_1(input: &str) -> u32 {
     let map = parse_input(input);
-    let (_, area_map) = build_region_and_area_maps(&map);
+    let (regions, region_to_area) = build_region_and_area_maps(&map);
 
     let mut total = 0;
     for i in 0..map.len() {
         for j in 0..map[i].len() {
-            let area = area_map[i][j];
+            let area = *region_to_area.get(&regions[i][j]).unwrap();
 
             for (di, dj) in [(-1, 0), (0, -1), (1, 0), (0, 1)] {
                 let ii = i as i32 + di;
@@ -35,7 +36,7 @@ fn solve_part_1(input: &str) -> u32 {
     total
 }
 
-fn build_region_and_area_maps(map: &[&[u8]]) -> (Vec<Vec<u32>>, Vec<Vec<u32>>) {
+fn build_region_and_area_maps(map: &[&[u8]]) -> (Vec<Vec<u32>>, FxHashMap<u32, u32>) {
     let mut regions = vec![vec![0; map[0].len()]; map.len()];
 
     let mut current_region = 1;
@@ -48,19 +49,14 @@ fn build_region_and_area_maps(map: &[&[u8]]) -> (Vec<Vec<u32>>, Vec<Vec<u32>>) {
         }
     }
 
-    let mut counts: FxHashMap<u32, u32> = FxHashMap::default();
+    let mut region_to_area: FxHashMap<u32, u32> = FxHashMap::default();
     for row in &regions {
         for &value in row {
-            *counts.entry(value).or_default() += 1;
+            *region_to_area.entry(value).or_default() += 1;
         }
     }
 
-    let area_map = regions
-        .iter()
-        .map(|row| row.iter().map(|&region| *counts.get(&region).unwrap()).collect())
-        .collect();
-
-    (regions, area_map)
+    (regions, region_to_area)
 }
 
 fn floodfill(
@@ -88,88 +84,91 @@ fn floodfill(
 
 fn solve_part_2(input: &str) -> u32 {
     let map = parse_input(input);
-    let (region_map, area_map) = build_region_and_area_maps(&map);
+    let (regions, region_to_area) = build_region_and_area_maps(&map);
 
     let mut side_count: FxHashMap<u32, u32> = FxHashMap::default();
 
     // Count vertical edges
-    let mut counted_left = vec![vec![false; map[0].len()]; map.len()];
-    let mut counted_right = vec![vec![false; map[0].len()]; map.len()];
-    for i in 0..map.len() {
-        for j in 0..map[i].len() {
-            let region = region_map[i][j];
+    for j in 0..map[0].len() {
+        let first_col = j == 0;
+        let last_col = j == map[0].len() - 1;
 
-            // Check for an edge to the left
+        // Count edges to the left of this column
+        let mut i = 0;
+        while i < map.len() {
+            let region = regions[i][j];
+
             let mut ii = i;
             while ii < map.len()
-                && !counted_left[ii][j]
-                && region_map[ii][j] == region
-                && (j == 0 || region_map[ii][j - 1] != region)
+                && regions[ii][j] == region
+                && (first_col || regions[ii][j - 1] != region)
             {
-                counted_left[ii][j] = true;
                 ii += 1;
             }
             if ii != i {
                 *side_count.entry(region).or_default() += 1;
             }
+            i = cmp::max(ii, i + 1);
+        }
 
-            // Check for an edge to the right
-            ii = i;
+        // Count edges to the right of this column
+        let mut i = 0;
+        while i < map.len() {
+            let region = regions[i][j];
+
+            let mut ii = i;
             while ii < map.len()
-                && !counted_right[ii][j]
-                && region_map[ii][j] == region
-                && (j == map[0].len() - 1 || region_map[ii][j + 1] != region)
+                && regions[ii][j] == region
+                && (last_col || regions[ii][j + 1] != region)
             {
-                counted_right[ii][j] = true;
                 ii += 1;
             }
             if ii != i {
                 *side_count.entry(region).or_default() += 1;
             }
+            i = cmp::max(ii, i + 1);
         }
     }
 
     // Count horizontal edges
-    let mut counted_top = vec![vec![false; map[0].len()]; map.len()];
-    let mut counted_bottom = vec![vec![false; map[0].len()]; map.len()];
-    for j in 0..map[0].len() {
-        for i in 0..map.len() {
-            let region = region_map[i][j];
-
-            // Check for an edge above
-            let mut jj = j;
-            while jj < map[i].len()
-                && !counted_top[i][jj]
-                && region_map[i][jj] == region
-                && (i == 0 || region_map[i - 1][jj] != region)
-            {
-                counted_top[i][jj] = true;
-                jj += 1;
-            }
-            if jj != j {
-                *side_count.entry(region).or_default() += 1;
-            }
-
-            // Check for an edge below
-            jj = j;
-            while jj < map[i].len()
-                && !counted_bottom[i][jj]
-                && region_map[i][jj] == region
-                && (i == map.len() - 1 || region_map[i + 1][jj] != region)
-            {
-                counted_bottom[i][jj] = true;
-                jj += 1;
-            }
-            if jj != j {
-                *side_count.entry(region).or_default() += 1;
-            }
-        }
-    }
-
-    let mut region_to_area: FxHashMap<u32, u32> = FxHashMap::default();
     for i in 0..map.len() {
-        for j in 0..map[i].len() {
-            region_to_area.insert(region_map[i][j], area_map[i][j]);
+        let first_row = i == 0;
+        let last_row = i == map.len() - 1;
+
+        // Count edges above this row
+        let mut j = 0;
+        while j < map[0].len() {
+            let region = regions[i][j];
+
+            let mut jj = j;
+            while jj < map[0].len()
+                && regions[i][jj] == region
+                && (first_row || regions[i - 1][jj] != region)
+            {
+                jj += 1;
+            }
+            if jj != j {
+                *side_count.entry(region).or_default() += 1;
+            }
+            j = cmp::max(jj, j + 1);
+        }
+
+        // Count edges below this row
+        let mut j = 0;
+        while j < map[0].len() {
+            let region = regions[i][j];
+
+            let mut jj = j;
+            while jj < map[0].len()
+                && regions[i][jj] == region
+                && (last_row || regions[i + 1][jj] != region)
+            {
+                jj += 1;
+            }
+            if jj != j {
+                *side_count.entry(region).or_default() += 1;
+            }
+            j = cmp::max(jj, j + 1);
         }
     }
 
