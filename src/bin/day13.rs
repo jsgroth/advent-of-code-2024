@@ -103,7 +103,12 @@ fn solve<const PART2: bool>(input: &str) -> i64 {
 fn solve_equation(a: Position, b: Position, p: Position) -> Option<(i64, i64)> {
     let b_numerator = a.x * p.y - a.y * p.x;
     let b_denominator = a.x * b.y - b.x * a.y;
-    if b_denominator == 0 || b_numerator % b_denominator != 0 {
+
+    assert_ne!(
+        b_denominator, 0,
+        "unexpected input; equation has infinite solutions for a={a:?} b={b:?} p={p:?}"
+    );
+    if b_numerator % b_denominator != 0 {
         // B is not an integer
         return None;
     }
