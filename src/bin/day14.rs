@@ -3,9 +3,7 @@
 //! <https://adventofcode.com/2024/day/14>
 
 use advent_of_code_2024::Pos2;
-use rustc_hash::FxHashSet;
 use std::error::Error;
-use std::iter;
 use winnow::ascii::{digit1, newline};
 use winnow::combinator::{opt, preceded, separated, separated_pair, terminated};
 use winnow::prelude::*;
@@ -93,15 +91,25 @@ fn solve_part_1(input: &str, width: i64, height: i64) -> i32 {
 // detected, the robot layout with the min score is _probably_ the solution.
 //
 // The winning layout is printed to stdout for visual verification.
-fn solve_part_2(input: &str) -> i32 {
+fn solve_part_2(input: &str) -> i64 {
     let mut robots = parse_input.parse(input).unwrap();
 
-    let mut previous_layouts_set: FxHashSet<_> = iter::once(robot_positions(&robots)).collect();
-    let mut previous_layouts_vec = vec![robot_positions(&robots)];
-
     let mut min_score = score(&robots);
+    let mut min_layout = robot_positions(&robots);
     let mut min_time = 0;
-    for second in 1.. {
+
+    // Due to rules of modular arithmetic, the positions are guaranteed to loop after 101*103 seconds.
+    //
+    // At a time t, each robot's position can be defined as:
+    //   x = (px + t * vx) mod 101
+    //   y = (py + t * vy) mod 103
+    // This means that the x positions will cycle every 101 seconds and the y positions will cycle
+    // every 103 seconds, since ((d * n) mod d) is equal to 0 for any integer n.
+    //
+    // Then, the room layout as a whole is guaranteed to cycle every lcm(101, 103) seconds, when
+    // both the x positions and the y positions are at the beginning of their cycle. 101 and 103
+    // are both prime numbers, so lcm(101, 103) = 101 * 103 = 10403
+    for second in 1..=REAL_WIDTH * REAL_HEIGHT {
         for robot in &mut robots {
             robot.position += robot.velocity;
             robot.clamp_position(REAL_WIDTH, REAL_HEIGHT);
@@ -110,18 +118,14 @@ fn solve_part_2(input: &str) -> i32 {
         let second_score = score(&robots);
         if second_score < min_score {
             min_score = second_score;
+            min_layout = robot_positions(&robots);
             min_time = second;
         }
-
-        if !previous_layouts_set.insert(robot_positions(&robots)) {
-            break;
-        }
-        previous_layouts_vec.push(robot_positions(&robots));
     }
 
     let mut grid = [[0; REAL_WIDTH as usize]; REAL_HEIGHT as usize];
-    for position in &previous_layouts_vec[min_time as usize] {
-        grid[position.y as usize][position.x as usize] += 1;
+    for &Position { x, y } in &min_layout {
+        grid[y as usize][x as usize] += 1;
     }
 
     for row in grid {
