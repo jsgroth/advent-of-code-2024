@@ -154,32 +154,37 @@ fn score_map<T: Copy + Eq>(map: &[Vec<T>], target: T) -> usize {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BoxSide {
+    Left,
+    Right,
+}
+
+impl BoxSide {
+    fn other(self) -> Self {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+
+    fn other_x_adjust(self) -> i32 {
+        match self {
+            Self::Left => 1,
+            Self::Right => -1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Space2 {
     Empty,
     Wall,
-    BoxLeft,
-    BoxRight,
+    Box(BoxSide),
 }
 
 impl Space2 {
     fn is_box(self) -> bool {
-        matches!(self, Self::BoxLeft | Self::BoxRight)
-    }
-
-    fn other_box_side(self) -> Self {
-        match self {
-            Self::BoxLeft => Self::BoxRight,
-            Self::BoxRight => Self::BoxLeft,
-            _ => panic!("other_box_side() called on not a box: {self:?}"),
-        }
-    }
-
-    fn other_box_side_x_adjust(self) -> i32 {
-        match self {
-            Self::BoxLeft => 1,
-            Self::BoxRight => -1,
-            _ => panic!("other_box_side_x_adjust() called on not a box: {self:?}")
-        }
+        matches!(self, Self::Box(_))
     }
 }
 
@@ -199,7 +204,7 @@ fn solve_part_2(input: &str) -> usize {
                 robot_pos = new_pos;
             }
             Space2::Wall => {}
-            Space2::BoxLeft | Space2::BoxRight => {
+            Space2::Box(_) => {
                 match direction {
                     Direction::Left | Direction::Right => {
                         // Horizontal push; easy case, basically the same as part 1
@@ -219,7 +224,7 @@ fn solve_part_2(input: &str) -> usize {
         }
     }
 
-    score_map(&map, Space2::BoxLeft)
+    score_map(&map, Space2::Box(BoxSide::Left))
 }
 
 fn expand_map(map: &[Vec<Space>]) -> Vec<Vec<Space2>> {
@@ -229,7 +234,7 @@ fn expand_map(map: &[Vec<Space>]) -> Vec<Vec<Space2>> {
                 .flat_map(|&space| match space {
                     Space::Empty => [Space2::Empty; 2],
                     Space::Wall => [Space2::Wall; 2],
-                    Space::Box => [Space2::BoxLeft, Space2::BoxRight],
+                    Space::Box => [Space2::Box(BoxSide::Left), Space2::Box(BoxSide::Right)],
                 })
                 .collect()
         })
@@ -241,8 +246,8 @@ fn can_move(map: &[Vec<Space2>], pos: Position, delta: Position) -> bool {
     match space {
         Space2::Empty => true,
         Space2::Wall => false,
-        Space2::BoxLeft | Space2::BoxRight => {
-            let x_adjustment = space.other_box_side_x_adjust();
+        Space2::Box(side) => {
+            let x_adjustment = side.other_x_adjust();
             can_move(map, pos + delta, delta)
                 && can_move(map, pos + Position { x: x_adjustment, y: delta.y }, delta)
         }
@@ -253,17 +258,17 @@ fn do_move(map: &mut [Vec<Space2>], pos: Position, delta: Position, new_space: S
     let space = map[pos.y as usize][pos.x as usize];
     match space {
         Space2::Empty => {}
-        Space2::BoxLeft | Space2::BoxRight => {
+        Space2::Box(side) => {
             // Push this half of the box up/down
             do_move(map, pos + delta, delta, space);
 
             // Push the other half of the box up/down
-            let x_adjustment = space.other_box_side_x_adjust();
+            let x_adjustment = side.other_x_adjust();
             do_move(
                 map,
                 pos + Position { x: x_adjustment, y: delta.y },
                 delta,
-                space.other_box_side(),
+                Space2::Box(side.other()),
             );
 
             // Mark empty the space occupied by the other half of the box
