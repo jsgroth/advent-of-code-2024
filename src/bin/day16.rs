@@ -121,7 +121,7 @@ impl Ord for HeapEntry {
     }
 }
 
-fn solve<const PART2: bool>(input: &str) -> u32 {
+fn solve(input: &str) -> (u32, usize) {
     let Input { walls, start, end } = parse_input(input);
     let walls = Walls(walls);
 
@@ -135,21 +135,14 @@ fn solve<const PART2: bool>(input: &str) -> u32 {
     let mut min_score_to_end: Option<u32> = None;
 
     while let Some(HeapEntry { score, pos, direction, mut path }) = heap.pop() {
+        if min_score_to_end.is_some_and(|min_score| min_score < score) {
+            // All remaining paths are longer than the min-distance path to end
+            break;
+        }
+
         if pos == end {
-            match min_score_to_end {
-                Some(min_score) if min_score == score => {
-                    // This is a min-distance path to the end; all positions on this path are good places to sit
-                    good_seats.extend(path.into_iter());
-                }
-                None => {
-                    // First path to reach the end is guaranteed to have the min possible score
-                    min_score_to_end = Some(score);
-                    good_seats.extend(path.into_iter());
-                }
-                Some(_) => {
-                    // This is not a min-distance path to the end position; do nothing
-                }
-            }
+            min_score_to_end = Some(score);
+            good_seats.extend(path.into_iter());
             continue;
         }
 
@@ -177,6 +170,12 @@ fn solve<const PART2: bool>(input: &str) -> u32 {
 
         let rotate_score = score + 1000;
         for rotate_direction in [direction.rotate_left(), direction.rotate_right()] {
+            // Don't bother pushing paths that would rotate towards facing a wall - these will never
+            // lead to a min-distance path
+            if walls[pos + rotate_direction.delta()] {
+                continue;
+            }
+
             if min_scores
                 .get(&(pos, rotate_direction))
                 .is_none_or(|&min_score| min_score >= rotate_score)
@@ -191,11 +190,12 @@ fn solve<const PART2: bool>(input: &str) -> u32 {
         }
     }
 
-    if PART2 { good_seats.len() as u32 } else { min_score_to_end.expect("No solution found") }
+    let min_score_to_end = min_score_to_end.expect("No solution found");
+    (min_score_to_end, good_seats.len())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    advent_of_code_2024::run(solve::<false>, solve::<true>)
+    advent_of_code_2024::run_single_fn(solve)
 }
 
 #[cfg(test)]
@@ -207,13 +207,13 @@ mod tests {
 
     #[test]
     fn part_1() {
-        assert_eq!(7036, solve::<false>(SAMPLE_INPUT));
-        assert_eq!(11048, solve::<false>(SAMPLE_INPUT_2));
+        assert_eq!(7036, solve(SAMPLE_INPUT).0);
+        assert_eq!(11048, solve(SAMPLE_INPUT_2).0);
     }
 
     #[test]
     fn part_2() {
-        assert_eq!(45, solve::<true>(SAMPLE_INPUT));
-        assert_eq!(64, solve::<true>(SAMPLE_INPUT_2));
+        assert_eq!(45, solve(SAMPLE_INPUT).1);
+        assert_eq!(64, solve(SAMPLE_INPUT_2).1);
     }
 }

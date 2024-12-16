@@ -17,6 +17,10 @@ pub fn read_input() -> io::Result<String> {
 
 const TIME_ITERATIONS: u128 = 100;
 
+fn should_time() -> bool {
+    env::var("AOCTIME").is_ok_and(|var| !var.is_empty())
+}
+
 fn time_micros<T>(f: impl Fn() -> T) -> u128 {
     let mut elapsed_sum = 0;
     for _ in 0..TIME_ITERATIONS {
@@ -43,12 +47,30 @@ where
     let solution2 = solve2(&input);
     println!("{solution2}");
 
-    if env::var("AOCTIME").is_ok_and(|var| !var.is_empty()) {
+    if should_time() {
         let duration1 = time_micros(|| solve1(&input));
         println!("Part 1 time: {duration1}μs");
 
         let duration2 = time_micros(|| solve2(&input));
         println!("Part 2 time: {duration2}μs");
+    }
+
+    Ok(())
+}
+
+pub fn run_single_fn<T1, T2>(solve: impl Fn(&str) -> (T1, T2)) -> Result<(), Box<dyn Error>>
+where
+    T1: Display,
+    T2: Display,
+{
+    let input = read_input()?;
+    let (solution1, solution2) = solve(&input);
+    println!("{solution1}");
+    println!("{solution2}");
+
+    if should_time() {
+        let duration = time_micros(|| solve(&input));
+        println!("Solution time: {duration}μs");
     }
 
     Ok(())
