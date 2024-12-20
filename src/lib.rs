@@ -1,6 +1,9 @@
+mod grid;
 mod pos;
 
+pub use grid::Grid;
 pub use pos::Pos2;
+pub use pos::Pos3;
 
 use std::error::Error;
 use std::fmt::Display;
