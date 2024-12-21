@@ -5,25 +5,36 @@
 use advent_of_code_2024::Pos2;
 use rustc_hash::FxHashMap;
 use std::cmp;
+use std::cmp::Ordering;
 use std::error::Error;
 
 type Position = Pos2<i32>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum NumericKey {
-    Zero = 0,
-    One = 1,
-    Two = 2,
-    Three = 3,
-    Four = 4,
-    Five = 5,
-    Six = 6,
-    Seven = 7,
-    Eight = 8,
-    Nine = 9,
-    Activate = 10,
+    Zero,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
+    Nine,
+    Activate,
 }
 
+// Numeric keypad layout:
+//
+//   | 0 1 2
+//  --------
+// 0 | 7 8 9
+// 1 | 4 5 6
+// 2 | 1 2 3
+// 3 |   0 A
+//
+// The bottom left corner (0, 3) is a gap that must not be touched
 impl NumericKey {
     const GAP: Position = Position::xy(0, 3);
 
@@ -42,6 +53,23 @@ impl NumericKey {
             Self::Activate => Position::xy(2, 3),
         }
     }
+
+    fn from_char(c: char) -> Self {
+        match c {
+            '0' => Self::Zero,
+            '1' => Self::One,
+            '2' => Self::Two,
+            '3' => Self::Three,
+            '4' => Self::Four,
+            '5' => Self::Five,
+            '6' => Self::Six,
+            '7' => Self::Seven,
+            '8' => Self::Eight,
+            '9' => Self::Nine,
+            'A' => Self::Activate,
+            _ => panic!("Invalid input character: {c}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,6 +81,14 @@ enum DirectionalKey {
     Activate,
 }
 
+// Directional keypad layout:
+//
+//   | 0 1 2
+//  --------
+// 0 |   ^ A
+// 1 | < v >
+//
+// The top left corner (0, 0) is a gap that must not be touched
 impl DirectionalKey {
     const GAP: Position = Position::xy(0, 0);
 
@@ -66,12 +102,20 @@ impl DirectionalKey {
         }
     }
 
-    const fn x_direction(delta: Position) -> Self {
-        if delta.x < 0 { Self::Left } else { Self::Right }
+    fn x_direction(delta: Position) -> Option<Self> {
+        match delta.x.cmp(&0) {
+            Ordering::Less => Some(Self::Left),
+            Ordering::Greater => Some(Self::Right),
+            Ordering::Equal => None,
+        }
     }
 
-    const fn y_direction(delta: Position) -> Self {
-        if delta.y < 0 { Self::Up } else { Self::Down }
+    fn y_direction(delta: Position) -> Option<Self> {
+        match delta.y.cmp(&0) {
+            Ordering::Less => Some(Self::Up),
+            Ordering::Greater => Some(Self::Down),
+            Ordering::Equal => None,
+        }
     }
 }
 
@@ -86,24 +130,7 @@ fn parse_input(input: &str) -> Vec<Code> {
         .lines()
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let keys = line
-                .chars()
-                .map(|c| match c {
-                    '0' => NumericKey::Zero,
-                    '1' => NumericKey::One,
-                    '2' => NumericKey::Two,
-                    '3' => NumericKey::Three,
-                    '4' => NumericKey::Four,
-                    '5' => NumericKey::Five,
-                    '6' => NumericKey::Six,
-                    '7' => NumericKey::Seven,
-                    '8' => NumericKey::Eight,
-                    '9' => NumericKey::Nine,
-                    'A' => NumericKey::Activate,
-                    _ => panic!("Invalid input character: {c}"),
-                })
-                .collect();
-
+            let keys = line.chars().map(NumericKey::from_char).collect();
             let value = line[..3].parse::<u64>().unwrap();
 
             Code { keys, value }
@@ -143,124 +170,127 @@ fn find_min_distance(
         return 0;
     }
 
-    find_min_distance_rec(
-        CacheKey {
-            start: start.position(),
-            target: code[0].position(),
-            depth_remaining: middle_robots + 1,
-            gap: NumericKey::GAP,
-        },
+    find_min_distance_key(
+        start.position(),
+        code[0].position(),
+        middle_robots + 1,
+        NumericKey::GAP,
         cache,
     ) + find_min_distance(&code[1..], code[0], middle_robots, cache)
 }
 
-fn find_min_distance_rec(key: CacheKey, cache: &mut FxHashMap<CacheKey, u64>) -> u64 {
-    if let Some(&min_distance) = cache.get(&key) {
-        return min_distance;
+// Find the min distance of the path from `start` to `target` at the specified depth
+fn find_min_distance_key(
+    start: Position,
+    target: Position,
+    depth_remaining: u32,
+    gap: Position,
+    cache: &mut FxHashMap<CacheKey, u64>,
+) -> u64 {
+    if depth_remaining == 0 {
+        // At the bottom level, any key takes 1 step
+        return 1;
     }
 
-    let CacheKey { start, target, depth_remaining, gap } = key;
-
     let target_delta = target - start;
-    if depth_remaining == 0 || target_delta == Position::xy(0, 0) {
-        // Next level only needs to press A, which it is already on
+    if target_delta == Position::xy(0, 0) {
+        // The next level only needs to press A, which it is already on
         return 1;
+    }
+
+    let cache_key = CacheKey { start, target, depth_remaining, gap };
+    if let Some(&min_distance) = cache.get(&cache_key) {
+        return min_distance;
     }
 
     let mut min_distance = u64::MAX;
 
+    // Check if the path will cross the gap if moving horizontally then vertically
     if start.y != gap.y || target.x != gap.x {
-        // Move horizontally then vertically, then back to A
-        let mut sub_distance = 0;
-        let mut sub_pos = DirectionalKey::Activate.position();
-
-        move_horizontally(target_delta, depth_remaining, &mut sub_distance, &mut sub_pos, cache);
-        move_vertically(target_delta, depth_remaining, &mut sub_distance, &mut sub_pos, cache);
-
-        sub_distance += find_min_distance_rec(
-            CacheKey {
-                start: sub_pos,
-                target: DirectionalKey::Activate.position(),
-                depth_remaining: depth_remaining - 1,
-                gap: DirectionalKey::GAP,
-            },
-            cache,
-        );
-        min_distance = cmp::min(min_distance, sub_distance);
+        // At depth (depth-1), move horizontally then vertically to reach the arrow, then move back to A
+        let distance =
+            move_to_key_and_back(target_delta, depth_remaining - 1, MoveDirections::HThenV, cache);
+        min_distance = cmp::min(min_distance, distance);
     }
 
+    // Check if the path will cross the gap if moving vertically then horizontally
     if start.x != gap.x || target.y != gap.y {
-        // Move vertically then horizontally, then back to A
-        let mut sub_distance = 0;
-        let mut sub_pos = DirectionalKey::Activate.position();
-
-        move_vertically(target_delta, depth_remaining, &mut sub_distance, &mut sub_pos, cache);
-        move_horizontally(target_delta, depth_remaining, &mut sub_distance, &mut sub_pos, cache);
-
-        sub_distance += find_min_distance_rec(
-            CacheKey {
-                start: sub_pos,
-                target: DirectionalKey::Activate.position(),
-                depth_remaining: depth_remaining - 1,
-                gap: DirectionalKey::GAP,
-            },
-            cache,
-        );
-        min_distance = cmp::min(min_distance, sub_distance);
+        // At depth (depth-1), move vertically then horizontally to reach the arrow, then move back to A
+        let distance =
+            move_to_key_and_back(target_delta, depth_remaining - 1, MoveDirections::VThenH, cache);
+        min_distance = cmp::min(min_distance, distance);
     }
 
-    cache.insert(key, min_distance);
+    cache.insert(cache_key, min_distance);
     min_distance
 }
 
-fn move_horizontally(
-    target_delta: Position,
-    depth_remaining: u32,
-    sub_distance: &mut u64,
-    sub_pos: &mut Position,
-    cache: &mut FxHashMap<CacheKey, u64>,
-) {
-    if target_delta.x == 0 {
-        return;
-    }
-
-    let new_sub_pos = DirectionalKey::x_direction(target_delta).position();
-    *sub_distance += find_min_distance_rec(
-        CacheKey {
-            start: *sub_pos,
-            target: new_sub_pos,
-            depth_remaining: depth_remaining - 1,
-            gap: DirectionalKey::GAP,
-        },
-        cache,
-    );
-    *sub_distance += (target_delta.x.abs() - 1) as u64;
-    *sub_pos = new_sub_pos;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MoveDirections {
+    HThenV,
+    VThenH,
 }
 
-fn move_vertically(
+// Find the min distance of the path to move the distance specified by `target_delta` at the specified
+// depth, and then back to the A
+fn move_to_key_and_back(
     target_delta: Position,
-    depth_remaining: u32,
-    sub_distance: &mut u64,
-    sub_pos: &mut Position,
+    depth: u32,
+    directions: MoveDirections,
     cache: &mut FxHashMap<CacheKey, u64>,
-) {
-    if target_delta.y == 0 {
-        return;
+) -> u64 {
+    let mut distance = 0;
+    let mut pos = DirectionalKey::Activate.position();
+
+    // Move the specified distance (to the arrow key)
+    let move_directions = match directions {
+        MoveDirections::HThenV => [MoveDirection::Horizontal, MoveDirection::Vertical],
+        MoveDirections::VThenH => [MoveDirection::Vertical, MoveDirection::Horizontal],
+    };
+    for direction in move_directions {
+        move_direction(target_delta, direction, depth, &mut distance, &mut pos, cache);
     }
 
-    let new_sub_pos = DirectionalKey::y_direction(target_delta).position();
-    *sub_distance += find_min_distance_rec(
-        CacheKey {
-            start: *sub_pos,
-            target: new_sub_pos,
-            depth_remaining: depth_remaining - 1,
-            gap: DirectionalKey::GAP,
-        },
+    // Move back to A
+    distance += find_min_distance_key(
+        pos,
+        DirectionalKey::Activate.position(),
+        depth,
+        DirectionalKey::GAP,
         cache,
     );
-    *sub_distance += (target_delta.y.abs() - 1) as u64;
-    *sub_pos = new_sub_pos;
+    distance
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MoveDirection {
+    Horizontal,
+    Vertical,
+}
+
+// Find the min distance of the path required to move by the specified distance in a single direction
+// (either horizontal or vertical)
+fn move_direction(
+    target_delta: Position,
+    direction: MoveDirection,
+    depth: u32,
+    distance: &mut u64,
+    pos: &mut Position,
+    cache: &mut FxHashMap<CacheKey, u64>,
+) {
+    let (delta_component, direction_key) = match direction {
+        MoveDirection::Horizontal => (target_delta.x, DirectionalKey::x_direction(target_delta)),
+        MoveDirection::Vertical => (target_delta.y, DirectionalKey::y_direction(target_delta)),
+    };
+    let Some(direction_key) = direction_key else { return };
+    let new_pos = direction_key.position();
+
+    *distance += find_min_distance_key(*pos, new_pos, depth, DirectionalKey::GAP, cache);
+
+    // Account for next level pressing A multiple times if abs(distance) > 1
+    *distance += (delta_component.abs() - 1) as u64;
+
+    *pos = new_pos;
 }
 
 const P1_ROBOTS: u32 = 2;
@@ -279,5 +309,10 @@ mod tests {
     #[test]
     fn part_1() {
         assert_eq!(126384, solve(SAMPLE_INPUT, P1_ROBOTS));
+    }
+
+    #[test]
+    fn part_2() {
+        assert_eq!(154115708116294, solve(SAMPLE_INPUT, P2_ROBOTS));
     }
 }
