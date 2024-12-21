@@ -6,6 +6,12 @@ pub struct Pos2<T> {
     pub y: T,
 }
 
+impl<T> Pos2<T> {
+    pub const fn xy(x: T, y: T) -> Self {
+        Self { x, y }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Pos3<T> {
     pub x: T,
