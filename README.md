@@ -15,5 +15,6 @@ cargo run --release --bin day1 -- /path/to/input1.txt
 ```
 
 These solutions use minimal third-party dependencies:
+* [rand](https://crates.io/crates/rand): Random number generator library
 * [rustc-hash](https://crates.io/crates/rustc-hash): Faster hash function for use with the standard library HashMap and HashSet
 * [winnow](https://crates.io/crates/winnow): Parser combinator library
